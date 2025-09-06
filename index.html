@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GATE CSE Syllabus Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#111827; color:#f3f4f6; padding:20px;}
+    .header h1{color:#60a5fa;}
+    .section-card{background:#1f2937;margin-bottom:16px;border:1px solid #374151;border-radius:8px;}
+    .section-header{padding:16px;cursor:pointer;display:flex;justify-content:space-between;}
+    .section-content{display:none;padding:16px;border-top:1px solid #374151;}
+    .section-content.expanded{display:block;}
+    .topic-item{display:flex;justify-content:space-between;margin:8px 0;padding:10px;background:#374151;border-radius:6px;}
+    .checkbox-wrapper{display:flex;align-items:center;gap:6px;}
+    .half-done{color:#fbbf24;}
+    .full-done{color:#34d399;}
+    .overall-progress{margin-top:20px;background:#1f2937;padding:20px;border-radius:8px;}
+    .progress-grid{display:flex;gap:20px;justify-content:center;}
+    .progress-item{text-align:center;}
+    .progress-number{font-size:1.5rem;font-weight:bold;}
+    .progress-number.half{color:#fbbf24;}
+    .progress-number.full{color:#34d399;}
+    .progress-number.total{color:#60a5fa;}
+    textarea.notes{width:100%;margin-top:10px;padding:10px;border-radius:6px;border:none;resize:vertical;min-height:60px;background:#111827;color:#f3f4f6;}
+    .download-btn{display:block;margin:20px auto;padding:10px 20px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;}
+    .download-btn:hover{background:#1d4ed8;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>GATE CSE Syllabus Tracker</h1></div>
+    <div id="sections-container"></div>
+
+    <div class="overall-progress">
+      <h2 style="text-align:center;">Overall Progress</h2>
+      <div class="progress-grid">
+        <div class="progress-item"><div class="progress-number half" id="total-half">0</div><div>Half Done</div></div>
+        <div class="progress-item"><div class="progress-number full" id="total-full">0</div><div>Fully Done</div></div>
+        <div class="progress-item"><div class="progress-number total" id="total-topics">0</div><div>Total Topics</div></div>
+      </div>
+    </div>
+
+    <button class="download-btn" onclick="downloadProgress()">⬇ Download Progress</button>
+  </div>
+
+<script>
+"use strict";
+
+const syllabusData = {
+  "Engineering Mathematics": ["Discrete Mathematics","Linear Algebra","Calculus","Probability and Statistics"],
+  "Digital Logic": ["Boolean Algebra","Combinational Circuits","Sequential Circuits","Number Systems"],
+  "Computer Organization and Architecture": ["Machine Instructions and Addressing Modes","ALU, Data-path and Control Unit","Memory Hierarchy","I/O Interface","Pipelining","Cache Memory"],
+  "Programming and Data Structures": ["Programming in C","Recursion","Arrays","Stacks","Queues","Linked Lists","Trees","Binary Search Trees","Binary Heaps","Graphs"],
+  "Algorithms": ["Searching and Sorting","Asymptotic Analysis","Greedy Algorithms","Dynamic Programming","Divide and Conquer","Graph Algorithms","Minimum Spanning Trees","Shortest Paths"],
+  "Theory of Computation": ["Regular Expressions and Finite Automata","Context-free Grammars and Push-down Automata","Regular and Context-free Languages","Pumping Lemma","Turing Machines","Undecidability"],
+  "Compiler Design": ["Lexical Analysis","Syntax Analysis","Syntax Directed Translation","Runtime Environments","Intermediate Code Generation","Local Optimization","Data Flow Analyses"],
+  "Operating System": ["System Calls","Processes","Threads","Inter-process Communication","Concurrency and Synchronization","Deadlock","CPU Scheduling","Memory Management and Virtual Memory","File Systems"],
+  "Databases": ["ER-Model","Relational Model","Relational Algebra","Tuple Calculus","SQL","Integrity Constraints","Normal Forms","File Organization","Indexing","Transactions and Concurrency Control"],
+  "Computer Networks": ["Concept of Layering","OSI and TCP/IP Protocol Suites","LAN Technologies","Flow and Error Control","Switching","IPv4/IPv6","Routers and Routing Algorithms","Congestion Control","TCP/UDP and Sockets","Network Security"]
+};
+
+let progress = JSON.parse(localStorage.getItem("progress")) || {};
+let notes = JSON.parse(localStorage.getItem("notes")) || {};
+
+function initializeData(){
+  for(let section in syllabusData){
+    if(!progress[section]) progress[section] = {};
+    if(!notes[section]) notes[section] = "";
+    syllabusData[section].forEach(topic=>{
+      if(!progress[section][topic]) progress[section][topic] = {half:false, full:false};
+    });
+  }
+}
+
+function saveData(){
+  localStorage.setItem("progress", JSON.stringify(progress));
+  localStorage.setItem("notes", JSON.stringify(notes));
+}
+
+function createTopicHTML(section, topic){
+  const id = (section+"-"+topic).replace(/\s+/g,"-").toLowerCase();
+  return `
+    <div class="topic-item">
+      <span>${topic}</span>
+      <div class="checkbox-group">
+        <label class="checkbox-wrapper half-done">
+          <input type="checkbox" id="half-${id}" data-section="${section}" data-topic="${topic}" data-type="half" ${progress[section][topic].half ? "checked":""}> Half
+        </label>
+        <label class="checkbox-wrapper full-done">
+          <input type="checkbox" id="full-${id}" data-section="${section}" data-topic="${topic}" data-type="full" ${progress[section][topic].full ? "checked":""}> Full
+        </label>
+      </div>
+    </div>`;
+}
+
+function createSectionHTML(section, topics, index){
+  const id = section.replace(/\s+/g,"-").toLowerCase();
+  let topicsHTML = topics.map(t=>createTopicHTML(section,t)).join("");
+  return `
+    <div class="section-card" data-section="${section}">
+      <div class="section-header" onclick="toggleSection('${section}')">
+        <strong>Section ${index+1}: ${section}</strong>
+        <div id="stats-${id}"></div>
+      </div>
+      <div class="section-content" id="content-${id}">
+        ${topicsHTML}
+        <textarea class="notes" data-section="${section}" placeholder="Write your notes here...">${notes[section] || ""}</textarea>
+      </div>
+    </div>`;
+}
+
+function toggleSection(section){
+  const id = section.replace(/\s+/g,"-").toLowerCase();
+  document.getElementById("content-"+id).classList.toggle("expanded");
+}
+
+function updateProgress(section,topic,type){
+  progress[section][topic][type] = !progress[section][topic][type];
+  saveData();
+  updateProgressStats(section);
+  updateOverallProgress();
+}
+
+function updateProgressStats(section){
+  const id = section.replace(/\s+/g,"-").toLowerCase();
+  let half=0, full=0;
+  syllabusData[section].forEach(t=>{
+    if(progress[section][t].half) half++;
+    if(progress[section][t].full) full++;
+  });
+  document.getElementById("stats-"+id).innerText = `${half} half · ${full} full · ${syllabusData[section].length} total`;
+}
+
+function updateOverallProgress(){
+  let totalHalf=0,totalFull=0,total=0;
+  for(let sec in syllabusData){
+    syllabusData[sec].forEach(t=>{
+      if(progress[sec][t].half) totalHalf++;
+      if(progress[sec][t].full) totalFull++;
+    });
+    total+=syllabusData[sec].length;
+  }
+  document.getElementById("total-half").innerText=totalHalf;
+  document.getElementById("total-full").innerText=totalFull;
+  document.getElementById("total-topics").innerText=total;
+}
+
+function downloadProgress(){
+  let text = "📘 GATE CSE Progress Report\n\n";
+  for(let section in syllabusData){
+    text += `=== ${section} ===\n`;
+    syllabusData[section].forEach(t=>{
+      let status = progress[section][t].full ? "✅ Full" : progress[section][t].half ? "🟡 Half" : "❌ Not Done";
+      text += `- ${t}: ${status}\n`;
+    });
+    if(notes[section]) text += `Notes: ${notes[section]}\n`;
+    text += "\n";
+  }
+  let blob = new Blob([text], {type:"text/plain"});
+  let link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "GATE_CSE_Progress.txt";
+  link.click();
+}
+
+function init(){
+  const container=document.getElementById("sections-container");
+  let html="";
+  let index=0;
+  for(let section in syllabusData){
+    html+=createSectionHTML(section,syllabusData[section],index++);
+  }
+  container.innerHTML=html;
+
+  document.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+    cb.addEventListener("change",function(){
+      const s=this.dataset.section;
+      const t=this.dataset.topic;
+      const type=this.dataset.type;
+      updateProgress(s,t,type);
+    });
+  });
+
+  document.querySelectorAll("textarea.notes").forEach(area=>{
+    area.addEventListener("input",function(){
+      const s=this.dataset.section;
+      notes[s] = this.value;
+      saveData();
+    });
+  });
+
+  for(let s in syllabusData) updateProgressStats(s);
+  updateOverallProgress();
+}
+
+initializeData();
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
